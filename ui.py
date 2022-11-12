@@ -56,6 +56,29 @@ def formatSetAttr(edit):
     return namespace, node, '.{} -> {}'.format(attr, arguments)
 
 
+def setAttInfo(edit):
+    editSplit = edit.split(' ')
+
+    editSplit.pop(0)
+
+    plug = editSplit.pop(0)
+    arguments = ''.join(editSplit)
+    return plug, arguments
+
+
+def splitPlug(plug):
+    plugSplit = plug.split('.')
+    node = plugSplit.pop(0)
+    attr = '.'.join(plugSplit)
+
+    return node, attr
+
+
+def getRootNamespace(plug):
+    plugSplit = plug.split(':')
+    return plugSplit[0]
+
+
 class ReferenceEdits(QDialog):
 
     plop = {
@@ -70,69 +93,97 @@ class ReferenceEdits(QDialog):
 
         # content
         self.referenceEditsTree = QTreeWidget()
-        self.referenceEditsTree.setHeaderLabels(('Command',))
-
-        referenceNodeCombo = QComboBox()
-        referenceNodeCombo.currentTextChanged.connect(self.reloadReferenceEditsTree)
-
-        for node in cmds.ls(type='reference'):
-            referenceNodeCombo.addItem(node)
+        self.referenceEditsTree.setHeaderHidden(True)
 
         # main layout
         mainLayout = QVBoxLayout(self)
-        mainLayout.addWidget(referenceNodeCombo)
         mainLayout.addWidget(self.referenceEditsTree)
 
-    def reloadReferenceEditsTree(self, referenceNode):
-        failed = cmds.referenceQuery(referenceNode, editStrings=True, failedEdits=True)
-        successful = cmds.referenceQuery(referenceNode, editStrings=True, successfulEdits=True)
+        self.reloadReferenceEditsTree()
 
-        namespaceItems = dict()
-        nodeItems = dict()
+    def reloadReferenceEditsTree(self):
+        # items = self.referenceEditsTree.items()
 
         self.referenceEditsTree.clear()
-        for edits, fail in ((failed, True), (successful, False)):
-            for edit in edits:
-                if not edit.startswith('setAttr'):
-                    continue
+        for referenceNode in cmds.ls(type='reference'):
+            if referenceNode == 'sharedReferenceNode' or cmds.referenceQuery(referenceNode, isNodeReferenced=True):
+                continue
 
-                namespace, node, description = formatSetAttr(edit)
+            isLoaded = cmds.referenceQuery(referenceNode, isLoaded=True)
 
-                if namespace not in namespaceItems.keys():
-                    namespaceItem = QTreeWidgetItem(('{}:'.format(namespace),), data=namespace)
-                    namespaceItems[namespace] = namespaceItem
-                    self.referenceEditsTree.addTopLevelItem(namespaceItem)
+            referenceTargets = list()
+            referenceItem = QTreeWidgetItem((referenceNode,))
+            referenceItem.setIcon(0, QIcon(':out_reference.png' if isLoaded else ':unloadedReference.png'))
+            self.referenceEditsTree.addTopLevelItem(referenceItem)
 
-                if node not in nodeItems.keys():
-                    nodeItem = QTreeWidgetItem((node,), data=node)
-                    nodeItems[node] = nodeItem
-                    namespaceItems[namespace].addChild(nodeItem)
+            failedEdits = cmds.referenceQuery(referenceNode, editStrings=True, failedEdits=True, successfulEdits=False)
+            successfulEdits = cmds.referenceQuery(referenceNode, editStrings=True, failedEdits=False, successfulEdits=True)
 
-                editItem = QTreeWidgetItem((description,), data=edit)
-                # editItem.setIcon(0, QIcon(':error.png')) if fail else None
-                #
-                # namespaceItems[namespace].setIcon(0, QIcon(':error.png')) if fail else None
-                # nodeItems[node].setIcon(0, QIcon(':error.png')) if fail else None
+            nodeItems = dict()
 
-                nodeItems[node].addChild(editItem)
+            for edits, failed in (failedEdits, True), (successfulEdits, False):
+                for edit in edits:
+                    if not edit.startswith('setAttr'):
+                        continue
 
-        # self.referenceEditsTree.clear()
-        # for edits, stateLabel in ((failed, 'failed'), (successful, 'successful')):
-        #     stateItem = QTreeWidgetItem((stateLabel,))
-        #     self.referenceEditsTree.addTopLevelItem(stateItem)
-        #
-        #     commandTypeItems = dict()
-        #     nodeItems = dict()
-        #
-        #     for edit in edits:
-        #         commandType = edit.split(' ')[0]
-        #
-        #         if commandType not in commandTypeItems.keys():
-        #             commandTypeItem = QTreeWidgetItem((commandType,))
-        #             commandTypeItems[commandType] = commandTypeItem
-        #             stateItem.addChild(commandTypeItem)
-        #
-        #         formatter = self.plop.get(commandType)
-        #         node, label = formatter(edit) if formatter else '', edit
-        #         item = QTreeWidgetItem((label,), data=edit)
-        #         commandTypeItems[commandType].addChild(item)
+                    plug, arguments = setAttInfo(edit)
+                    node, attr = splitPlug(plug)
+
+                    if node not in nodeItems.keys():
+                        nodeItem = QTreeWidgetItem((node,))
+                        nodeItem.setData(0, Qt.UserRole, {'targets': [node], 'referenceNode': referenceNode})
+                        nodeItems[node] = nodeItem
+                        referenceItem.addChild(nodeItem)
+
+                    editItem = QTreeWidgetItem((edit,))
+                    editItem.setData(0, Qt.UserRole, {'targets': [plug], 'referenceNode': referenceNode})
+                    editItem.setIcon(0, QIcon(':error.png')) if failed else None
+
+                    referenceTargets.append(node)
+
+                    nodeItems[node].setIcon(0, QIcon(':error.png')) if failed else None
+
+                    nodeItems[node].addChild(editItem)
+
+            referenceItem.setData(0, Qt.UserRole, {'targets': referenceTargets, 'referenceNode': referenceNode})
+
+    def contextMenuEvent(self, event):
+        removeEditAct = QAction('Remove Selected Edits', self)
+        removeEditAct.triggered.connect(self.removeSelectedEdits)
+
+        unloadReferenceAct = QAction('Unload Selected References', self)
+        # unloadReferenceAct.triggered.connect(self.unloadReferences)
+
+        self.referenceEditsTree.isTopLevel()
+
+        menu = QMenu()
+        menu.addAction(removeEditAct)
+        menu.addAction(unloadReferenceAct)
+        menu.exec_(self.mapToGlobal(event.pos()))
+
+    def removeSelectedEdits(self):
+        selectedItems = self.referenceEditsTree.selectedItems()
+
+        if not selectedItems:
+            cmds.warning('Nothing selected.')
+            return
+
+        reload_ = False
+        for item in selectedItems:
+            data = item.data(0, Qt.UserRole)
+            referenceNode = data['referenceNode']
+            isLoaded = cmds.referenceQuery(referenceNode, isLoaded=True)
+            targets = data['targets']
+
+            if isLoaded:
+                print('To proceed, please unload {}.'.format(repr(str(referenceNode))))
+                continue
+
+            if not targets:
+                print('Nothing to remove found.')
+                continue
+
+            [cmds.referenceEdit(target, removeEdits=True, successfulEdits=True) for target in targets]
+            reload_ = True
+
+        self.reloadReferenceEditsTree() if reload_ else None
