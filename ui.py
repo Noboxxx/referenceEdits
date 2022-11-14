@@ -186,6 +186,8 @@ class ReferenceEdits(QDialog):
 
             for edits, failed in (failedEdits, True), (successfulEdits, False):
                 for edit in edits:
+                    if 'MayaNodeEditorSavedTabsInfo' in edit:
+                        continue
                     commandType = edit.split(' ')[0]
                     target = None
                     if commandType == 'setAttr':
