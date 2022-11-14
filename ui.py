@@ -132,6 +132,9 @@ class ReferenceEdits(QDialog):
         removeAllFailedEditAct = QAction('Remove Failed Edits From Selected References', self)
         removeAllFailedEditAct.triggered.connect(self.removeAllFailedEdits)
 
+        removeAllFailedEditAct = QAction('Remove All Edits From Selected References', self)
+        removeAllFailedEditAct.triggered.connect(self.removeAllEdits)
+
         self.referenceEditsTree.isTopLevel()
 
         menu = QMenu()
@@ -141,6 +144,8 @@ class ReferenceEdits(QDialog):
         menu.addAction(loadReferenceAct)
         menu.addSeparator()
         menu.addAction(removeEditAct)
+        menu.addSeparator()
+        menu.addAction(removeAllFailedEditAct)
         menu.addAction(removeAllFailedEditAct)
         menu.exec_(self.mapToGlobal(event.pos()))
 
@@ -270,6 +275,21 @@ class ReferenceEdits(QDialog):
                 cmds.warning('To proceed, please unload {}.'.format(repr(str(referenceNode))))
                 continue
             cmds.referenceEdit(referenceNode, removeEdits=True)
+            reload_ = True
+
+        self.reloadReferenceEditsTree() if reload_ else None
+
+    def removeAllEdits(self):
+        selectedItems = self.referenceEditsTree.selectedItems()
+        referenceNodes = list({x.data(0, Qt.UserRole)['referenceNode'] for x in selectedItems})
+
+        reload_ = False
+        for referenceNode in referenceNodes:
+            isLoaded = cmds.referenceQuery(referenceNode, isLoaded=True)
+            if isLoaded:
+                cmds.warning('To proceed, please unload {}.'.format(repr(str(referenceNode))))
+                continue
+            cmds.referenceEdit(referenceNode, removeEdits=True, successfulEdits=True)
             reload_ = True
 
         self.reloadReferenceEditsTree() if reload_ else None

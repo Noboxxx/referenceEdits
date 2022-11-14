@@ -13,3 +13,9 @@ from referenceEdits.ui import ReferenceEdits
 ui = ReferenceEdits()
 ui.show()
 """
+
+# TODO:
+#   - unknown edits
+#   - all command types
+#   - search edits through nodes and attr. Not just trough referenceNode
+#   - export / import edits ?
