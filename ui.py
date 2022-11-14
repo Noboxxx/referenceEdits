@@ -166,6 +166,8 @@ class ReferenceEdits(QDialog):
             referenceTargets = list()
             referenceID = 'reference_{}'.format(referenceNode)
             referenceItem = QTreeWidgetItem((referenceNode,))
+            referenceItem.setData(0, Qt.UserRole, {'targets': [referenceNode], 'referenceNode': referenceNode, 'id': referenceID})
+            referenceItem.setToolTip(0, referenceNode)
             referenceItem.setIcon(0, QIcon(':out_reference.png' if isLoaded else ':unloadedReference.png'))
             self.referenceEditsTree.addTopLevelItem(referenceItem)
 
@@ -243,8 +245,6 @@ class ReferenceEdits(QDialog):
                         editItem.setData(0, Qt.UserRole, {'targets': [node], 'referenceNode': referenceNode, 'id': editID, 'commandType': commandType})
                         editItem.setIcon(0, QIcon(':error.png')) if failed else None
                         nodeItem.addChild(editItem)
-
-            referenceItem.setData(0, Qt.UserRole, {'targets': referenceTargets, 'referenceNode': referenceNode, 'id': referenceID})
 
         # restore
         iterator = QTreeWidgetItemIterator(self.referenceEditsTree)
