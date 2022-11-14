@@ -57,16 +57,15 @@ def formatSetAttr(edit):
 
 
 def setAttInfo(edit):
-    editSplit = edit.split(' ')
-    return editSplit.pop(1)
+    return edit.split(' ')[1]
 
 
 def connectAttInfo(edit):
-    editSplit = edit.split(' ')
-    sourcePlug = editSplit.pop(1)
-    destinationPlug = editSplit.pop(1)
+    return edit.split(' ')[2][1:-1]
 
-    return plug
+
+def parentAttrInfo(edit):
+    return edit.split('\"')[-2]
 
 
 def splitPlug(plug):
@@ -149,14 +148,46 @@ class ReferenceEdits(QDialog):
             for edits, failed in (failedEdits, True), (successfulEdits, False):
                 for edit in edits:
                     if edit.startswith('setAttr'):
-                        plug = setAttInfo(edit)
+                        target = setAttInfo(edit)
                     elif edit.startswith('connectAttr'):
-                        plug = ''
+                        target = connectAttInfo(edit)
+                    elif edit.startswith('parent'):
+                        target = parentAttrInfo(edit)
                     else:
-                        plug = ''
-                    node, attr = splitPlug(plug)
+                        target = ''
 
-                    if node not in nodeItems.keys():
+                    if '.' in target:
+                        plug = target
+
+                        node, attr = splitPlug(plug)
+
+                        if node not in nodeItems.keys():
+                            nodeID = 'node_{}'.format(node)
+                            nodeShortName = node.split('|')[-1].split(':')[-1]
+                            nodeItem = QTreeWidgetItem((nodeShortName,))
+                            nodeItem.setData(0, Qt.UserRole, {'targets': [node], 'referenceNode': referenceNode, 'id': nodeID})
+                            nodeItems[node] = nodeItem
+                            referenceItem.addChild(nodeItem)
+
+                        editID = 'edit_{}'.format(plug)
+                        editItem = QTreeWidgetItem((edit,))
+                        editItem.setData(0, Qt.UserRole, {'targets': [plug], 'referenceNode': referenceNode, 'id': editID})
+                        editItem.setIcon(0, QIcon(':error.png')) if failed else None
+
+                        plugID = 'plug_{}'.format(plug)
+                        plugShortName = '.'.join(plug.split('|')[-1].split('.')[1:])
+                        plugItem = QTreeWidgetItem((plugShortName,))
+                        plugItem.setData(0, Qt.UserRole, {'targets': [plug], 'referenceNode': referenceNode, 'id': plugID})
+                        plugItem.setIcon(0, QIcon(':error.png')) if failed else None
+                        plugItem.addChild(editItem)
+
+                        nodeItems[node].addChild(plugItem)
+                        nodeItems[node].setIcon(0, QIcon(':error.png')) if failed else None
+
+                        referenceTargets.append(node)
+                    else:
+                        node = target
+
                         nodeID = 'node_{}'.format(node)
                         nodeShortName = node.split('|')[-1].split(':')[-1]
                         nodeItem = QTreeWidgetItem((nodeShortName,))
@@ -164,22 +195,11 @@ class ReferenceEdits(QDialog):
                         nodeItems[node] = nodeItem
                         referenceItem.addChild(nodeItem)
 
-                    editID = 'edit_{}'.format(plug)
-                    editItem = QTreeWidgetItem((edit,))
-                    editItem.setData(0, Qt.UserRole, {'targets': [plug], 'referenceNode': referenceNode, 'id': editID})
-                    editItem.setIcon(0, QIcon(':error.png')) if failed else None
-
-                    plugID = 'plug_{}'.format(plug)
-                    plugShortName = '.'.join(plug.split('|')[-1].split('.')[1:])
-                    plugItem = QTreeWidgetItem((plugShortName,))
-                    plugItem.setData(0, Qt.UserRole, {'targets': [plug], 'referenceNode': referenceNode, 'id': plugID})
-                    plugItem.setIcon(0, QIcon(':error.png')) if failed else None
-                    plugItem.addChild(editItem)
-
-                    nodeItems[node].addChild(plugItem)
-                    nodeItems[node].setIcon(0, QIcon(':error.png')) if failed else None
-
-                    referenceTargets.append(node)
+                        editID = 'edit_{}'.format(node)
+                        editItem = QTreeWidgetItem((edit,))
+                        editItem.setData(0, Qt.UserRole, {'targets': [node], 'referenceNode': referenceNode, 'id': editID})
+                        editItem.setIcon(0, QIcon(':error.png')) if failed else None
+                        nodeItem.addChild(editItem)
 
             referenceItem.setData(0, Qt.UserRole, {'targets': referenceTargets, 'referenceNode': referenceNode, 'id': referenceID})
 
