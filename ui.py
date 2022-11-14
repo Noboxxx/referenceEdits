@@ -84,9 +84,8 @@ def getRootNamespace(plug):
 class ReferenceEdits(QDialog):
     # "addAttr", "connectAttr", "deleteAttr", "disconnectAttr", "parent", "setAttr", "lock" and "unlock"
 
-    plop = {
-        'setAttr': formatSetAttr
-    }
+    failedColor = QColor(255, 75, 75)
+    warningColor = QColor(255, 165, 0)
 
     def __init__(self, parent=getMayaMainWindow()):
         super(ReferenceEdits, self).__init__(parent=parent)
@@ -130,7 +129,7 @@ class ReferenceEdits(QDialog):
         removeEditAct = QAction('Remove Selected Edits', self)
         removeEditAct.triggered.connect(self.removeSelectedEdits)
 
-        removeAllFailedEditAct = QAction('Remove All Failed Edits From Selected References', self)
+        removeAllFailedEditAct = QAction('Remove Failed Edits From Selected References', self)
         removeAllFailedEditAct.triggered.connect(self.removeAllFailedEdits)
 
         self.referenceEditsTree.isTopLevel()
@@ -163,16 +162,20 @@ class ReferenceEdits(QDialog):
 
             isLoaded = cmds.referenceQuery(referenceNode, isLoaded=True)
 
-            referenceTargets = list()
+            failedEdits = cmds.referenceQuery(referenceNode, editStrings=True, failedEdits=True, successfulEdits=False)
+            successfulEdits = cmds.referenceQuery(referenceNode, editStrings=True, failedEdits=False, successfulEdits=True)
+
             referenceID = 'reference_{}'.format(referenceNode)
             referenceItem = QTreeWidgetItem((referenceNode,))
             referenceItem.setData(0, Qt.UserRole, {'targets': [referenceNode], 'referenceNode': referenceNode, 'id': referenceID})
             referenceItem.setToolTip(0, referenceNode)
-            referenceItem.setIcon(0, QIcon(':out_reference.png' if isLoaded else ':unloadedReference.png'))
-            self.referenceEditsTree.addTopLevelItem(referenceItem)
 
-            failedEdits = cmds.referenceQuery(referenceNode, editStrings=True, failedEdits=True, successfulEdits=False)
-            successfulEdits = cmds.referenceQuery(referenceNode, editStrings=True, failedEdits=False, successfulEdits=True)
+            referenceItem.setIcon(0, QIcon(':out_reference.png' if isLoaded else ':unloadedReference.png'))
+            if failedEdits and successfulEdits:
+                referenceItem.setTextColor(0, self.warningColor)
+            elif failedEdits:
+                referenceItem.setTextColor(0, self.failedColor)
+            self.referenceEditsTree.addTopLevelItem(referenceItem)
 
             nodeItems = dict()
 
@@ -193,7 +196,7 @@ class ReferenceEdits(QDialog):
                         editItem.setDisabled(True)
                         editItem.setToolTip(0, 'Type not supported.')
                         editItem.setData(0, Qt.UserRole, {'targets': [edit], 'referenceNode': referenceNode, 'id': editID, 'commandType': commandType})
-                        editItem.setIcon(0, QIcon(':error.png')) if failed else None
+                        editItem.setTextColor(0, self.failedColor) if failed else None
                         referenceItem.addChild(editItem)
 
                     elif '.' in target:
@@ -214,20 +217,18 @@ class ReferenceEdits(QDialog):
                         editItem = QTreeWidgetItem((edit,))
                         editItem.setData(0, Qt.UserRole, {'targets': [plug], 'referenceNode': referenceNode, 'id': editID, 'commandType': commandType})
                         editItem.setToolTip(0, plug)
-                        editItem.setIcon(0, QIcon(':error.png')) if failed else None
+                        editItem.setTextColor(0, self.failedColor) if failed else None
 
                         plugID = 'plug_{}'.format(plug)
                         plugShortName = '.'.join(plug.split('|')[-1].split('.')[1:])
                         plugItem = QTreeWidgetItem((plugShortName,))
                         plugItem.setToolTip(0, plug)
                         plugItem.setData(0, Qt.UserRole, {'targets': [plug], 'referenceNode': referenceNode, 'id': plugID})
-                        plugItem.setIcon(0, QIcon(':error.png')) if failed else None
+                        plugItem.setTextColor(0, self.failedColor) if failed else None
                         plugItem.addChild(editItem)
 
                         nodeItems[node].addChild(plugItem)
-                        nodeItems[node].setIcon(0, QIcon(':error.png')) if failed else None
-
-                        referenceTargets.append(node)
+                        nodeItems[node].setTextColor(0, self.failedColor) if failed else None
 
                     else:
                         node = target
@@ -243,7 +244,7 @@ class ReferenceEdits(QDialog):
                         editID = 'edit_{}'.format(node)
                         editItem = QTreeWidgetItem((edit,))
                         editItem.setData(0, Qt.UserRole, {'targets': [node], 'referenceNode': referenceNode, 'id': editID, 'commandType': commandType})
-                        editItem.setIcon(0, QIcon(':error.png')) if failed else None
+                        editItem.setTextColor(0, self.failedColor) if failed else None
                         nodeItem.addChild(editItem)
 
         # restore
