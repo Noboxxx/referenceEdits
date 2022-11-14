@@ -3,7 +3,7 @@ from PySide2.QtCore import Qt, QSize
 from PySide2.QtGui import QIcon, QPixmap, QColor
 from PySide2.QtWidgets import QMainWindow, QHBoxLayout, QVBoxLayout, QPushButton, QGridLayout, QColorDialog, \
     QComboBox, QLabel, QDoubleSpinBox, QDialog, QCheckBox, QFrame, QApplication, QLineEdit, QFileDialog, QMenuBar, \
-    QMenu, QAction, QTreeWidget, QTreeWidgetItem
+    QMenu, QAction, QTreeWidget, QTreeWidgetItem, QTreeWidgetItemIterator
 from maya import OpenMayaUI, cmds
 import shiboken2
 from functools import partial
@@ -118,6 +118,16 @@ class ReferenceEdits(QDialog):
         self.reloadReferenceEditsTree()
 
     def reloadReferenceEditsTree(self):
+        # store
+        memory = dict()
+        iterator = QTreeWidgetItemIterator(self.referenceEditsTree)
+        while iterator.value():
+            item = iterator.value()  # type: QTreeWidgetItem
+            data = item.data(0, Qt.UserRole)
+            memory[data['id']] = item.isExpanded(), item.isSelected()
+            iterator += 1
+
+        # create items
         self.referenceEditsTree.clear()
         for referenceNode in cmds.ls(type='reference'):
             if referenceNode == 'sharedReferenceNode' or cmds.referenceQuery(referenceNode, isNodeReferenced=True):
@@ -126,6 +136,7 @@ class ReferenceEdits(QDialog):
             isLoaded = cmds.referenceQuery(referenceNode, isLoaded=True)
 
             referenceTargets = list()
+            referenceID = 'reference_{}'.format(referenceNode)
             referenceItem = QTreeWidgetItem((referenceNode,))
             referenceItem.setIcon(0, QIcon(':out_reference.png' if isLoaded else ':unloadedReference.png'))
             self.referenceEditsTree.addTopLevelItem(referenceItem)
@@ -140,25 +151,28 @@ class ReferenceEdits(QDialog):
                     if edit.startswith('setAttr'):
                         plug = setAttInfo(edit)
                     elif edit.startswith('connectAttr'):
-                        plug = connectAttInfo(edit)
+                        plug = ''
                     else:
                         plug = ''
                     node, attr = splitPlug(plug)
 
                     if node not in nodeItems.keys():
-                        nodeShortName = node.split('|')[-1]
+                        nodeID = 'node_{}'.format(node)
+                        nodeShortName = node.split('|')[-1].split(':')[-1]
                         nodeItem = QTreeWidgetItem((nodeShortName,))
-                        nodeItem.setData(0, Qt.UserRole, {'targets': [node], 'referenceNode': referenceNode})
+                        nodeItem.setData(0, Qt.UserRole, {'targets': [node], 'referenceNode': referenceNode, 'id': nodeID})
                         nodeItems[node] = nodeItem
                         referenceItem.addChild(nodeItem)
 
+                    editID = 'edit_{}'.format(plug)
                     editItem = QTreeWidgetItem((edit,))
-                    editItem.setData(0, Qt.UserRole, {'targets': [plug], 'referenceNode': referenceNode})
+                    editItem.setData(0, Qt.UserRole, {'targets': [plug], 'referenceNode': referenceNode, 'id': editID})
                     editItem.setIcon(0, QIcon(':error.png')) if failed else None
 
-                    plugShortName = plug.split('|')[-1]
+                    plugID = 'plug_{}'.format(plug)
+                    plugShortName = '.'.join(plug.split('|')[-1].split('.')[1:])
                     plugItem = QTreeWidgetItem((plugShortName,))
-                    plugItem.setData(0, Qt.UserRole, {'targets': [plug], 'referenceNode': referenceNode})
+                    plugItem.setData(0, Qt.UserRole, {'targets': [plug], 'referenceNode': referenceNode, 'id': plugID})
                     plugItem.setIcon(0, QIcon(':error.png')) if failed else None
                     plugItem.addChild(editItem)
 
@@ -167,7 +181,19 @@ class ReferenceEdits(QDialog):
 
                     referenceTargets.append(node)
 
-            referenceItem.setData(0, Qt.UserRole, {'targets': referenceTargets, 'referenceNode': referenceNode})
+            referenceItem.setData(0, Qt.UserRole, {'targets': referenceTargets, 'referenceNode': referenceNode, 'id': referenceID})
+
+        # restore
+        iterator = QTreeWidgetItemIterator(self.referenceEditsTree)
+        while iterator.value():
+            item = iterator.value()  # type: QTreeWidgetItem
+            data = item.data(0, Qt.UserRole)
+            id_ = data['id']
+            if id_ in memory:
+                expanded, selected = memory[id_]
+                item.setExpanded(expanded)
+                item.setSelected(selected)
+            iterator += 1
 
     def contextMenuEvent(self, event):
         removeEditAct = QAction('Remove Selected Edits', self)
