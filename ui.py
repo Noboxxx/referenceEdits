@@ -192,7 +192,7 @@ class ReferenceEdits(QDialog):
                     target = None
                     if commandType == 'setAttr':
                         target = setAttInfo(edit)
-                    elif commandType == 'connectAttr':
+                    elif commandType in ('connectAttr', 'disconnectAttr'):
                         target = connectAttInfo(edit)
                     elif commandType == 'parent':
                         target = parentAttrInfo(edit)
