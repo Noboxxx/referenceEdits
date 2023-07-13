@@ -165,7 +165,10 @@ class ReferenceEdits(QDialog):
             if referenceNode == 'sharedReferenceNode' or cmds.referenceQuery(referenceNode, isNodeReferenced=True):
                 continue
 
-            isLoaded = cmds.referenceQuery(referenceNode, isLoaded=True)
+            try:
+                isLoaded = cmds.referenceQuery(referenceNode, isLoaded=True)
+            except RuntimeError:
+                continue
 
             failedEdits = cmds.referenceQuery(referenceNode, editStrings=True, failedEdits=True, successfulEdits=False)
             successfulEdits = cmds.referenceQuery(referenceNode, editStrings=True, failedEdits=False, successfulEdits=True)
